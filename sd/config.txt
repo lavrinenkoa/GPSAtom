@@ -1,0 +1,12 @@
+{
+  "dbg": 1,
+  "sd_start_timeout": 5,
+  "wifi_ap_name":     "GPS",
+  "wifi_ap_password"]:"123456789",
+  "wifi_server_dns"]: "gps.com",
+  "GPX_meta_desc"]:   "LVR Auto track",
+  "GPX_src"]:         "GPSFire",
+  "GPX_track_name"]:  "TLC",
+  "GPX_track_description"]:"Auto track"
+}
+

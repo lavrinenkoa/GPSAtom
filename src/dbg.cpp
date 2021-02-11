@@ -7,8 +7,12 @@
 int lcdLine=0;
 #endif
 
+extern ConfigParam config;   
+
 void dbg(const char* format, ...)
 {
+    if (config.dbg == 0) return;
+
     File logFile;
     char tmp[1024*2];
     va_list argptr;
@@ -35,6 +39,8 @@ void dbg(const char* format, ...)
 
 void dbg_serial(const char* format, ...)
 {
+    if (config.dbg == 0) return;
+
     char tmp[1024*2];
     va_list argptr;
     va_start(argptr, format);

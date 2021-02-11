@@ -7,10 +7,7 @@
 #define FILE_BUFF_SIZE     ( 1024 )
 
 //------------------- Wi-Fi Server --------------------
-// Access Point credentials
-const char *ssid = "LVR-GPS";
-const char *password ="123456789";
-const char *server_name = "mygps.com";
+extern ConfigParam config;   // Access Point credentials
 
 DNSServer dnsServer;
 WiFiServer server(80);
@@ -26,7 +23,7 @@ void initWifiServer()
     WiFi.softAPConfig(ip, gateway, subnet);
 
     dbg("Setting soft-AP ... ");
-    boolean result = WiFi.softAP(ssid, password);
+    boolean result = WiFi.softAP(config.wifi_ap_name, config.wifi_ap_password);
     if (result == true) dbg("Ready\n");
     else                dbg("Failed!\n");
 
@@ -35,7 +32,7 @@ void initWifiServer()
 
 
     const byte DNS_PORT = 53;
-    dnsServer.start(DNS_PORT, server_name, ip_address);
+    dnsServer.start(DNS_PORT, config.wifi_server_dns, ip_address);
 }
 
 

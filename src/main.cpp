@@ -52,6 +52,7 @@ HardwareSerial GPSRaw(2);                                     // By default, GPS
 
 // GPX track file
 GPX gpxTrack;
+char gpxTrackName[20];
 char gpxTrackFileName[20];
 int gpxTrackFileStartPause = 5; // ~ sec  pause before gpx file started
 boolean gpx_file_started=false;
@@ -101,7 +102,7 @@ int SDCardInit()
 	dbg("SDCard Size = %d \r\n" , (int)(SD.cardSize()/1024/1024));
 
     dbg("OK\n");
-    FastLED.setBrightness(5);
+    FastLED.setBrightness(10);
     led = CRGB(255,0,255);
     M5.dis.drawpix(0, led);
 #endif
@@ -266,24 +267,30 @@ void loadConfiguration(const char *filename, ConfigParam &config)
     if (error)
         dbg("Failed to read file, using default configuration");
 
-    config.port = doc["port"] | 1299;
-    strlcpy(config.hostname, doc["hostname"] | "lvr.com", sizeof(config.hostname));
-    // wifi_ap_name
-    // wifi_ap_password
-    // wifi_server_dns
-    // sd_start_timeout
-    // dbg
-    // GPX_setMetaDesc("foofoofoo");
-    // GPX_track name");
-    // GPX_Track description");
-    // GPX_Src M5 GPS");
+    config.dbg =              doc["dbg"]              | 1;
+    config.sd_start_timeout = doc["sd_start_timeout"] | 5;
+    strlcpy(config.wifi_ap_name,         doc["wifi_ap_name"]     | "GPS",       sizeof(config.wifi_ap_name));
+    strlcpy(config.wifi_ap_password,     doc["wifi_ap_password"] | "123456789", sizeof(config.wifi_ap_password));
+    strlcpy(config.wifi_server_dns,      doc["wifi_server_dns"]  | "gps.com",   sizeof(config.wifi_server_dns));
+
+    strlcpy(config.GPX_meta_desc,        doc["GPX_meta_desc"]    | "LVR Auto track", sizeof(config.GPX_meta_desc));
+    strlcpy(config.GPX_src,              doc["GPX_src"]          | "GPSFire",        sizeof(config.GPX_src));
+    strlcpy(config.GPX_track_name,       doc["GPX_track_name"]   | "TLC",            sizeof(config.GPX_track_name));
+    strlcpy(config.GPX_track_description,doc["GPX_track_description"] | "Auto track",sizeof(config.GPX_track_description));
 
     file.close();
 
-    dbg("hostname = %s\n", config.hostname);
-    dbg("port=%d\n", config.port);
+    dbg("dbg = %d\n",              config.dbg);
+    dbg("sd_start_timeout = %d\n", config.sd_start_timeout);
+    dbg("wifi_ap_name = %s\n",     config.wifi_ap_name);
+    dbg("wifi_ap_password = %s\n", config.wifi_ap_password);
+    dbg("wifi_server_dns = %s\n",  config.wifi_server_dns);
+    dbg("GPX_meta_desc = %s\n",    config.GPX_meta_desc);
+    dbg("GPX_src = %s\n",          config.GPX_src);
+    dbg("GPX_track_name = %s\n",   config.GPX_track_name);
+    dbg("GPX_track_description = %s\n", config.GPX_track_description);
 
-    //todo return error/ok
+    gpxTrackFileStartPause = config.sd_start_timeout;
 }
 
 // Create falidated GPS string
@@ -454,10 +461,13 @@ void GPXFileInit()
         return;
     }
 
-    gpxTrack.setMetaDesc("foofoofoo");
-    gpxTrack.setName("track name");
-    gpxTrack.setDesc("Track description");
-    gpxTrack.setSrc("M5 GPS");
+    sprintf(gpxTrackFileName, "%02d-%02d-%02d",      gps.date.year(), gps.date.month(), gps.date.day());
+    sprintf(gpxTrackFileName, "/%02d-%02d-%02d.gpx", gps.date.year(), gps.date.month(), gps.date.day());
+
+    gpxTrack.setMetaDesc(config.GPX_meta_desc);
+    gpxTrack.setName(gpxTrackName);                    // or config.GPX_track_name?
+    gpxTrack.setDesc(config.GPX_track_description);
+    gpxTrack.setSrc(config.GPX_src);
 
     gpx_head = gpxTrack.getOpen() +
                gpxTrack.getMetaData() +
@@ -465,9 +475,7 @@ void GPXFileInit()
                gpxTrack.getInfo() +
                gpxTrack.getTrakSegOpen();
     Serial.print(gpx_head);
-    // LCD M5.Lcd.println(gpx_head);
-
-    sprintf(gpxTrackFileName, "/%02d-%02d-%02d.gpx", gps.date.year(), gps.date.month(), gps.date.day());
+ 
     if (SD.exists(gpxTrackFileName) == false)
     {
         gpxTrackFile = SD.open(gpxTrackFileName, "w+");
