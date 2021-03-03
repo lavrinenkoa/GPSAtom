@@ -1,8 +1,8 @@
 #ifndef MYGPS_h
 #define MYGPS_h
 
-#define M5STACK
-//#define M5ATOM
+//#define M5STACK
+#define M5ATOM
 
 #ifdef M5STACK
 #include <M5Stack.h>
