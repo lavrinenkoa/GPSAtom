@@ -1,4 +1,4 @@
-<a href="buymeacoffee.com/lavrinenko" target="_blank"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-%E2%82%AC5-orange?style=for-the-badge&logo=buy-me-a-coffee" /></a>
+<a href="https://www.buymeacoffee.com/lavrinenko" target="_blank"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-%E2%82%AC5-orange?style=for-the-badge&logo=buy-me-a-coffee" /></a>
 
 # GPSFire
 
@@ -37,4 +37,4 @@ or
 
 Alexandr.
 
-<a href="buymeacoffee.com/lavrinenko" target="_blank"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-%E2%82%AC5-orange?style=for-the-badge&logo=buy-me-a-coffee" /></a>
+<a href="https://www.buymeacoffee.com/lavrinenko" target="_blank"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-%E2%82%AC5-orange?style=for-the-badge&logo=buy-me-a-coffee" /></a>
