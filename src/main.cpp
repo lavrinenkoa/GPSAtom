@@ -273,6 +273,9 @@ void loadConfiguration(const char *filename, ConfigParam &config)
     strlcpy(config.wifi_ap_password,     doc["wifi_ap_password"] | "123456789", sizeof(config.wifi_ap_password));
     strlcpy(config.wifi_server_dns,      doc["wifi_server_dns"]  | "gps.com",   sizeof(config.wifi_server_dns));
 
+    strlcpy(config.wifi_ssid,            doc["wifi_ssid"]        | "TLC",       sizeof(config.wifi_ssid));
+    strlcpy(config.wifi_ssid_password, doc["wifi_ssid_password"] | "123456789", sizeof(config.wifi_ssid_password));
+
     strlcpy(config.GPX_meta_desc,        doc["GPX_meta_desc"]    | "LVR Auto track", sizeof(config.GPX_meta_desc));
     strlcpy(config.GPX_src,              doc["GPX_src"]          | "GPSFire",        sizeof(config.GPX_src));
     strlcpy(config.GPX_track_name,       doc["GPX_track_name"]   | "TLC",            sizeof(config.GPX_track_name));
@@ -285,6 +288,10 @@ void loadConfiguration(const char *filename, ConfigParam &config)
     dbg("wifi_ap_name = %s\n",     config.wifi_ap_name);
     dbg("wifi_ap_password = %s\n", config.wifi_ap_password);
     dbg("wifi_server_dns = %s\n",  config.wifi_server_dns);
+
+    dbg("wifi_ssid = %s\n",          config.wifi_ssid);
+    dbg("wifi_ssid_password = %s\n", config.wifi_ssid_password);
+
     dbg("GPX_meta_desc = %s\n",    config.GPX_meta_desc);
     dbg("GPX_src = %s\n",          config.GPX_src);
     dbg("GPX_track_name = %s\n",   config.GPX_track_name);

@@ -12,7 +12,9 @@ extern ConfigParam config;   // Access Point credentials
 DNSServer dnsServer;
 WiFiServer server(80);
 WiFiClient client;
+int client_wifi_status;
 
+#define CLIENT_WIFI_CONNECTED (0)
 
 void initWifiServer()
 {
@@ -33,6 +35,38 @@ void initWifiServer()
 
     const byte DNS_PORT = 53;
     dnsServer.start(DNS_PORT, config.wifi_server_dns, ip_address);
+}
+
+
+void initWifiClient()
+{
+  int n=0;
+
+  dbg("Connect to WiFi %s\n", config.wifi_ssid)
+  WiFi.begin(config.ssid, config.wifi_ssid_password);
+  while (1)
+  {
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      client_wifi_status = CLIENT_WIFI_CONNECTED;
+      dbg("\n");
+      dbg("Connection established");  
+      dbg("IP address:\t");
+      dbg(WiFi.localIP());   
+      break;
+    }
+
+    delay(500);
+    dbg(".");
+    ++n;
+    if (n>30){
+      client_wifi_status = CLIENT_WIFI_CONNECTED_TIMEOUT;
+      dbg("\n");
+      dbg("Connection timeout. Wi-fi disabled.");
+      break;
+    }
+  }
+
 }
 
 

@@ -4,6 +4,8 @@
   "wifi_ap_name":     "GPSAtom",
   "wifi_ap_password"]:"123456789",
   "wifi_server_dns"]: "gps.com",
+  "wifi_ssid":          "wifi-point",
+  "wifi_ssid_password"]:"123456789",
   "GPX_meta_desc"]:   "LVR Auto track",
   "GPX_src"]:         "GPSAtom",
   "GPX_track_name"]:  "TLC",
