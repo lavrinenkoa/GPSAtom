@@ -5,5 +5,6 @@ void initWifiServer();
 void initWifiClient();
 void initHTTPServer();
 void loopHTTP();
+int sendEmail();
 
 #endif /* WIFIPOINT_H_ */

@@ -182,6 +182,7 @@ void setup()
 
 void TaskGPS( void * pvParameters )
 {
+    while(1){};
     delay(2000);
     while(1)
     {
