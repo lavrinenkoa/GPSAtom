@@ -59,9 +59,11 @@ boolean gpx_file_started=false;
 
 TaskHandle_t Task0GPS;
 TaskHandle_t Task1HTTP;
+TaskHandle_t Task1WifiClient;
 
-void TaskGPS( void * pvParameters );
 void loadConfiguration(const char *filename, ConfigParam &config);
+void TaskGPS( void * pvParameters );
+void TaskWifiClient( void * pvParameters );
 void TaskHTTP( void * pvParameters );
 void gpsProcessing();
 void gpsLogValues(); 
@@ -102,7 +104,7 @@ int SDCardInit()
 	dbg("SDCard Size = %d \r\n" , (int)(SD.cardSize()/1024/1024));
 
     dbg("OK\n");
-    FastLED.setBrightness(10);
+    FastLED.setBrightness(1);
     led = CRGB(255,0,255);
     M5.dis.drawpix(0, led);
 #endif
@@ -133,8 +135,11 @@ void setup()
 
     loadConfiguration(cfgFileName, config);
 
-    initWifiServer();
-    initHTTPServer();
+    if ( config.wifi_mode == CONF_WIFI_AP )
+    {
+        initWifiServer();
+        initHTTPServer();
+    }
 
     xTaskCreatePinnedToCore(
                       TaskGPS,     // Task function.
@@ -146,21 +151,38 @@ void setup()
                       0);          // pin task to core 0
 
     delay(100);
-    xTaskCreatePinnedToCore(
-                      TaskHTTP,    // Task function.
-                      "HTTP",      // name of task.
-                      50*1024,     // Stack size of task
-                      NULL,        // parameter of the task
-                      1,           // priority of the task
-                      &Task1HTTP,  // Task handle to keep track of created task
-                      1);          // pin task to core 1
-      delay(100);
+
+    if ( config.wifi_mode == CONF_WIFI_AP )
+    {
+        xTaskCreatePinnedToCore(
+                        TaskHTTP,    // Task function.
+                        "HTTP",      // name of task.
+                        50*1024,     // Stack size of task
+                        NULL,        // parameter of the task
+                        1,           // priority of the task
+                        &Task1HTTP,  // Task handle to keep track of created task
+                        1);          // pin task to core 1
+        delay(100);
+    }
+    else if ( config.wifi_mode == CONF_WIFI_CLIENT )
+    {
+        xTaskCreatePinnedToCore(
+                        TaskWifiClient,    // Task function.
+                        "Wifi",      // name of task.
+                        50*1024,     // Stack size of task
+                        NULL,        // parameter of the task
+                        1,           // priority of the task
+                        &Task1WifiClient,  // Task handle to keep track of created task
+                        1);          // pin task to core 1
+        delay(100);
+    }
 
       disableCore0WDT();
 }
 
 void TaskGPS( void * pvParameters )
 {
+    delay(2000);
     while(1)
     {
         // Serial.print("Task0GPS running on core ");
@@ -196,6 +218,19 @@ void TaskHTTP( void * pvParameters )
         loopHTTP();
     }
 }
+
+void TaskWifiClient( void * pvParameters )
+{
+    initWifiClient();
+    while(1)
+    {
+        // Serial.print("Task2 running on core ");
+        // Serial.println(xPortGetCoreID());
+        yield();
+        //loopHTTP();
+    }
+}
+
 /****************************************************************************************/
 /* Main routine                                                                         */
 /****************************************************************************************/
@@ -269,6 +304,7 @@ void loadConfiguration(const char *filename, ConfigParam &config)
 
     config.dbg =              doc["dbg"]              | 1;
     config.sd_start_timeout = doc["sd_start_timeout"] | 5;
+    config.wifi_mode =        doc["wifi_mode"] | CONF_WIFI_CLIENT;
     strlcpy(config.wifi_ap_name,         doc["wifi_ap_name"]     | "GPS",       sizeof(config.wifi_ap_name));
     strlcpy(config.wifi_ap_password,     doc["wifi_ap_password"] | "123456789", sizeof(config.wifi_ap_password));
     strlcpy(config.wifi_server_dns,      doc["wifi_server_dns"]  | "gps.com",   sizeof(config.wifi_server_dns));

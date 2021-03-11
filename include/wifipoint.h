@@ -2,6 +2,7 @@
 #define WIFIPOINT_H_
 
 void initWifiServer();
+void initWifiClient();
 void initHTTPServer();
 void loopHTTP();
 

@@ -14,7 +14,8 @@ WiFiServer server(80);
 WiFiClient client;
 int client_wifi_status;
 
-#define CLIENT_WIFI_CONNECTED (0)
+#define CLIENT_WIFI_CONNECTED         ( 0 )
+#define CLIENT_WIFI_CONNECTED_TIMEOUT ( 1 )
 
 void initWifiServer()
 {
@@ -42,8 +43,8 @@ void initWifiClient()
 {
   int n=0;
 
-  dbg("Connect to WiFi %s\n", config.wifi_ssid)
-  WiFi.begin(config.ssid, config.wifi_ssid_password);
+  dbg("Connect to WiFi %s\n", config.wifi_ssid);
+  WiFi.begin(config.wifi_ssid, config.wifi_ssid_password);
   while (1)
   {
     if (WiFi.status() == WL_CONNECTED)
@@ -52,7 +53,7 @@ void initWifiClient()
       dbg("\n");
       dbg("Connection established");  
       dbg("IP address:\t");
-      dbg(WiFi.localIP());   
+      dbg(WiFi.localIP().toString().c_str());   
       break;
     }
 
