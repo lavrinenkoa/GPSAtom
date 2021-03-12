@@ -7,6 +7,8 @@
 #include "wifipoint.h"
 
 #define FILE_BUFF_SIZE     ( 1024 )
+
+extern char gpxTrackName[20];
 //------------------- Email sender --------------------
 SMTPSession smtp;
 #include "passwd.h"
@@ -61,7 +63,7 @@ void initWifiClient()
       dbg("Connection established\n");  
       dbg("IP address:\t %s\n", WiFi.localIP().toString().c_str());
 
-      sendEmail();
+      //sendEmail();
       break;
     }
 
@@ -78,7 +80,7 @@ void initWifiClient()
 
 }
 
-// https://github.com/mobizt/ESP-Mail-Client/blob/master/examples/Send_Text/Send_Text.ino
+// https://github.com/mobizt/ESP-Mail-Client/blob/master/examples/Send_Attachment_File/Send_Attachment_File.ino
 int sendEmail()
 {
   int ret=1;
@@ -109,11 +111,32 @@ int sendEmail()
   SMTP_Message message;
 
   // Set the message headers
+  char messageText[20];
   message.sender.name = "ESP GPSAtom";
   message.sender.email = AUTHOR_EMAIL;
   message.subject = "GPS Track";
   message.addRecipient("GPSAtom", "gpsm5stack@gmail.com");
   message.text.content = "This is simple plain text message";
+  sprintf(messageText, "%s attached.", gpxTrackName);
+  message.text.content = messageText;
+
+  char gpxTrackDate[20];
+  char gpxTrackFileName[20];
+  char gpxTrackFileMime[20];
+  char gpxTrackFilePath[20];
+  sprintf(gpxTrackDate,     "%s",     gpxTrackName); // current track name
+  sprintf(gpxTrackFileName, "%s.gpx", gpxTrackDate);
+  sprintf(gpxTrackFileMime, "%s/gpx", gpxTrackDate);
+  sprintf(gpxTrackFilePath, "/%s", gpxTrackFileName);
+
+
+  SMTP_Attachment att;
+  att.descr.filename = gpxTrackFileName;
+  att.descr.mime = gpxTrackFileMime;
+  att.file.path = gpxTrackFilePath;
+  att.file.storage_type = esp_mail_file_storage_type_sd; // from SD
+  att.descr.transfer_encoding = Content_Transfer_Encoding::enc_base64;
+  message.addInlineImage(att);
 
   message.priority = esp_mail_smtp_priority::esp_mail_smtp_priority_high;
   message.response.notify = esp_mail_smtp_notify_success | esp_mail_smtp_notify_failure | esp_mail_smtp_notify_delay;
@@ -135,6 +158,8 @@ int sendEmail()
     dbg("Error sending Email, %s\n", smtp.errorReason().c_str());
     ret = -1;
   }
+
+  smtp.closeSession();
 
   return ret;
 }

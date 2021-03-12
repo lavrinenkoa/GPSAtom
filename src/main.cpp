@@ -22,6 +22,7 @@
 #include <ArduinoJson.h>
 
 #include "dbg.h"
+#include "colorled.h"
 #include "mygps.h"
 #include "wifipoint.h"
 #include "GPX.h"
@@ -39,10 +40,6 @@
 #define GPS_VALUE_NOT_VALID_SAT      ( 0b00001000 )
 #define GPS_VALUE_NOT_VALID_LOCATION ( 0b00010000 )
 #define GPS_VALUE_FILTERED           ( 0b00100000 )
-
-#ifdef M5ATOM
-CRGB led(0, 0, 0);
-#endif
 
 const char *cfgFileName = CFG_FILE_TXT;
 ConfigParam config;                                           // <- global configuration object
@@ -105,8 +102,7 @@ int SDCardInit()
 
     dbg("OK\n");
     FastLED.setBrightness(1);
-    led = CRGB(255,0,255);
-    M5.dis.drawpix(0, led);
+    white();
 #endif
 
     return 0;
@@ -182,7 +178,7 @@ void setup()
 
 void TaskGPS( void * pvParameters )
 {
-    while(1){};
+    // while(1){};
     delay(2000);
     while(1)
     {
@@ -222,6 +218,8 @@ void TaskHTTP( void * pvParameters )
 
 void TaskWifiClient( void * pvParameters )
 {
+    int ret=-1;
+
     initWifiClient();
     while(1)
     {
@@ -229,6 +227,24 @@ void TaskWifiClient( void * pvParameters )
         // Serial.println(xPortGetCoreID());
         yield();
         //loopHTTP();
+        if (M5.Btn.wasPressed())
+        {
+            blue();
+            for (int i=0;i<=3;i++)
+            {
+                ret = sendEmail();
+                if (ret==0) break;
+                if ( (ret!=0) and (i<=2))
+                    dbg("Email send is failed :( Let's try again!\n");
+            }
+
+            if (ret == 0)
+                white();
+            else
+                red();
+        }
+        delay(50);
+        M5.Btn.read();
     }
 }
 
@@ -450,20 +466,11 @@ int isGPSValuesValid()
     if ( !gps.date.isValid()       or gps.date.year() < 2020)     valid |= GPS_VALUE_NOT_VALID_DATE;
     if ( !gps.location.isValid()   or gps.location.rawLat().deg==0 or gps.location.rawLat().billionths==0) valid |= GPS_VALUE_NOT_VALID_LOCATION;
     
- #ifdef M5ATOM   
     if (valid == GPS_VALUE_VALID)
-    {
-        // Green
-        led = CRGB(255,0,0);
-        M5.dis.drawpix(0, led);
-    }
+        green();
     else
-    {
-        // Red
-        led = CRGB(0,255,0);
-        M5.dis.drawpix(0, led);       
-    }
- #endif   
+        red();
+  
     return valid;
 }
 
@@ -505,7 +512,7 @@ void GPXFileInit()
         return;
     }
 
-    sprintf(gpxTrackFileName, "%02d-%02d-%02d",      gps.date.year(), gps.date.month(), gps.date.day());
+    sprintf(gpxTrackName,     "%02d-%02d-%02d",      gps.date.year(), gps.date.month(), gps.date.day());
     sprintf(gpxTrackFileName, "/%02d-%02d-%02d.gpx", gps.date.year(), gps.date.month(), gps.date.day());
 
     gpxTrack.setMetaDesc(config.GPX_meta_desc);
