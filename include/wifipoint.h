@@ -5,6 +5,6 @@ void initWifiServer();
 void initWifiClient();
 void initHTTPServer();
 void loopHTTP();
-int sendEmail();
+int sendEmail(String file_attachment);
 
 #endif /* WIFIPOINT_H_ */

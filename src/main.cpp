@@ -20,6 +20,8 @@
 /****************************************************************************************/
 #include <TinyGPS++.h>
 #include <ArduinoJson.h>
+#include <map>
+#include <string>
 
 #include "dbg.h"
 #include "colorled.h"
@@ -108,6 +110,109 @@ int SDCardInit()
     return 0;
 }
 
+int syncMailAndSDFiles()
+{
+    int ret=-1;
+    int i=0;
+    std::map <String, int> sd_tracks;
+    std::map <String, int> csv_tracks;
+    std::map <String, int> to_mail_tracks;
+    std::map <String, int> :: iterator it = sd_tracks.begin();
+    std::map <String, int> :: iterator sd;
+    std::map <String, int> :: iterator csv;
+
+    File csv_file;
+    String file_name;
+    String file_size;
+
+    // Get SD *.gpx file list.
+    File dir = SD.open("/");
+    dbg("-------------------------\n");
+    dbg("SD file list:\n");
+    while (true)
+    {
+        File entry = dir.openNextFile();
+        if (!entry)
+            break; // no more files
+        if (strstr(entry.name(), ".gpx") == NULL)
+        {
+            entry.close();
+            continue;
+        }
+        dbg("%d %s %d\n", ++i, entry.name(), entry.size());
+        // if (entry.isDirectory())
+        sd_tracks[entry.name()] = entry.size();
+        entry.close();
+    }
+    dbg("-------------------------\n");
+
+    // Read  CSV file with previus sync results
+    csv_file  = SD.open("/sync.csv", FILE_READ);
+    // if (!tracks_file.isOpen())
+    // {
+    //     dbg("Error: can not open file sync.csv\n");
+    //     return -1;
+    // }
+    dbg("-------------------------\n");
+    dbg("CSV file list:\n"); i=0;
+    while (csv_file.available()) {
+        file_name = csv_file.readStringUntil(',');
+        file_size = csv_file.readStringUntil('\n');
+        dbg("%d %s %d\n", ++i, file_name.c_str(), file_size.toInt());
+        csv_tracks[file_name] = file_size.toInt();
+    }
+    csv_file.close();
+    dbg("-------------------------\n");
+
+    // Check unsynchronized files and send emails
+    String sd_file;
+    int    sd_size;
+    it = sd_tracks.begin();
+    for (int i = 0; it != sd_tracks.end(); it++, i++) {
+        dbg("%d %s %d\n", i, it->first.c_str(), it->second);
+        sd_file = it->first;
+        sd_size = it->second;
+
+        csv = csv_tracks.find(sd_file);
+        if (csv == csv_tracks.end())   // file not found in csv list, send email
+        {
+            to_mail_tracks[sd_file] = sd_size;
+            dbg("Send email with %s %d\n", sd_file.c_str(), sd_size);
+            ret = sendEmail(sd_file);
+            if (ret==0) csv_tracks[sd_file] = sd_size;
+        }
+        else
+        {
+            if (sd_size != csv->second) // file size updated, send email
+            {
+                to_mail_tracks[sd_file] = sd_size;
+                dbg("Send email with %s %d. size updated\n", sd_file.c_str(), sd_size);
+                ret = sendEmail(sd_file);
+                if (ret==0) csv_tracks[sd_file] = sd_size;
+            }
+            else
+            {
+                // add to csv
+                csv_tracks[sd_file] = sd_size;
+                dbg("Add file %s %d\n", sd_file.c_str(), sd_size);
+            }
+        }
+    }
+
+    // Update CSV file
+    dbg("Update sync.csv\n");
+    csv_file  = SD.open("/sync.csv", FILE_WRITE);
+    it = csv_tracks.begin();
+    for (int i = 0; it != csv_tracks.end(); it++, i++) {
+        dbg("%d %s %d\n", i, it->first.c_str(), it->second);
+        // file_name, size
+        csv_file.printf("%s, %d\n", it->first.c_str(), it->second);
+    }
+    csv_file.close();
+
+    return ret;
+}
+
 void setup()
 {
 #ifdef M5STACK
@@ -165,7 +270,7 @@ void setup()
         xTaskCreatePinnedToCore(
                         TaskWifiClient,    // Task function.
                         "Wifi",      // name of task.
-                        50*1024,     // Stack size of task
+                        5*1024,     // Stack size of task
                         NULL,        // parameter of the task
                         1,           // priority of the task
                         &Task1WifiClient,  // Task handle to keep track of created task
@@ -178,7 +283,7 @@ void setup()
 
 void TaskGPS( void * pvParameters )
 {
-    // while(1){};
+    while(1) sleep(5);
     delay(2000);
     while(1)
     {
@@ -219,6 +324,7 @@ void TaskHTTP( void * pvParameters )
 void TaskWifiClient( void * pvParameters )
 {
     int ret=-1;
+    // while(1) sleep(5);
 
     initWifiClient();
     while(1)
@@ -230,14 +336,7 @@ void TaskWifiClient( void * pvParameters )
         if (M5.Btn.wasPressed())
         {
             blue();
-            for (int i=0;i<=3;i++)
-            {
-                ret = sendEmail();
-                if (ret==0) break;
-                if ( (ret!=0) and (i<=2))
-                    dbg("Email send is failed :( Let's try again!\n");
-            }
-
+            ret = syncMailAndSDFiles();
             if (ret == 0)
                 white();
             else
