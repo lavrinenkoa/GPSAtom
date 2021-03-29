@@ -4,8 +4,14 @@
 
 CRGB led(0, 0, 0);
 
+// static bool red_st=  false;
+// static bool green_st=false;
+// static bool blue_st= false;
+// static bool white_st=false;
+
 void red()
 {
+    
     led = CRGB(0,255,0);
     M5.dis.drawpix(0, led);
 }

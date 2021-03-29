@@ -4,6 +4,7 @@
 void initWifiServer();
 void initWifiClient();
 void initHTTPServer();
+void disconnectWifiClient();
 void loopHTTP();
 int sendEmail(String file_attachment);
 

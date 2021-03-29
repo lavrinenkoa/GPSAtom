@@ -270,7 +270,7 @@ void setup()
         xTaskCreatePinnedToCore(
                         TaskWifiClient,    // Task function.
                         "Wifi",      // name of task.
-                        5*1024,     // Stack size of task
+                        50*1024,     // Stack size of task
                         NULL,        // parameter of the task
                         1,           // priority of the task
                         &Task1WifiClient,  // Task handle to keep track of created task
@@ -325,8 +325,6 @@ void TaskWifiClient( void * pvParameters )
 {
     int ret=-1;
     // while(1) sleep(5);
-
-    initWifiClient();
     while(1)
     {
         // Serial.print("Task2 running on core ");
@@ -336,6 +334,7 @@ void TaskWifiClient( void * pvParameters )
         if (M5.Btn.wasPressed())
         {
             blue();
+            initWifiClient();
             ret = syncMailAndSDFiles();
             if (ret == 0)
                 white();

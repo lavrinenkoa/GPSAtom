@@ -75,7 +75,11 @@ void initWifiClient()
       break;
     }
   }
+}
 
+void disconnectWifiClient()
+{
+  WiFi.disconnect();
 }
 
 // https://github.com/mobizt/ESP-Mail-Client/blob/master/examples/Send_Attachment_File/Send_Attachment_File.ino
