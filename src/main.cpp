@@ -24,10 +24,11 @@
 #include <string>
 
 #include "dbg.h"
-#include "colorled.h"
 #include "mygps.h"
-#include "wifipoint.h"
 #include "GPX.h"
+#include "colorled.h"
+#include "wifipoint.h"
+#include "passwd.h"
 
 #define CFG_FILE_TXT       "/config.txt"
 #define GPS_STAUS_NO_SAT   ( 0  )  // No GPS receiver detected
@@ -331,10 +332,17 @@ void TaskWifiClient( void * pvParameters )
         // Serial.println(xPortGetCoreID());
         yield();
         //loopHTTP();
+        M5.Btn.read();
         if (M5.Btn.wasPressed())
         {
             blue();
-            initWifiClient();
+            ret = initWifiClient(config.wifi_ssid, config.wifi_ssid_password);
+            if (ret!=CLIENT_WIFI_CONNECTED)
+            {
+                ret = initWifiClient(HOME_SSID, HOME_SSID_PASS);
+                if (ret!=CLIENT_WIFI_CONNECTED)
+                    continue;
+            }
             ret = syncMailAndSDFiles();
             if (ret == 0)
                 white();
@@ -342,7 +350,6 @@ void TaskWifiClient( void * pvParameters )
                 red();
         }
         delay(50);
-        M5.Btn.read();
     }
 }
 

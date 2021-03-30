@@ -23,9 +23,6 @@ WiFiServer server(80);
 WiFiClient client;
 int client_wifi_status;
 
-#define CLIENT_WIFI_CONNECTED         ( 0 )
-#define CLIENT_WIFI_CONNECTED_TIMEOUT ( 1 )
-
 void initWifiServer()
 {
     WiFi.mode(WIFI_AP_STA);  //need both to serve the webpage and take commands via tcp
@@ -48,12 +45,12 @@ void initWifiServer()
 }
 
 
-void initWifiClient()
+int initWifiClient(String ssid, String password)
 {
   int n=0;
 
   dbg("Connect to WiFi %s\n", config.wifi_ssid);
-  WiFi.begin(config.wifi_ssid, config.wifi_ssid_password);
+  WiFi.begin(ssid.c_str(), password.c_str());
   while (1)
   {
     if (WiFi.status() == WL_CONNECTED)
@@ -68,18 +65,22 @@ void initWifiClient()
     delay(500);
     dbg(".");
     ++n;
-    if (n>30){
+    if (n>10){
       client_wifi_status = CLIENT_WIFI_CONNECTED_TIMEOUT;
       dbg("\n");
       dbg("Connection timeout. Wi-fi disabled.");
       break;
     }
   }
+
+  return client_wifi_status;
 }
 
 void disconnectWifiClient()
 {
   WiFi.disconnect();
+  client_wifi_status = CLIENT_WIFI_DISCONNECTED;
+  dbg("Wi-fi disabled.");
 }
 
 // https://github.com/mobizt/ESP-Mail-Client/blob/master/examples/Send_Attachment_File/Send_Attachment_File.ino
