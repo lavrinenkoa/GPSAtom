@@ -149,21 +149,23 @@ int syncMailAndSDFiles()
 
     // Read  CSV file with previus sync results
     csv_file  = SD.open("/sync.csv", FILE_READ);
-    // if (!tracks_file.isOpen())
-    // {
-    //     dbg("Error: can not open file sync.csv\n");
-    //     return -1;
-    // }
-    dbg("-------------------------\n");
-    dbg("CSV file list:\n"); i=0;
-    while (csv_file.available()) {
-        file_name = csv_file.readStringUntil(',');
-        file_size = csv_file.readStringUntil('\n');
-        dbg("%d %s %d\n", ++i, file_name.c_str(), file_size.toInt());
-        csv_tracks[file_name] = file_size.toInt();
+    if (csv_file)
+    {
+        dbg("-------------------------\n");
+        dbg("CSV file list:\n"); i=0;
+        while (csv_file.available()) {
+            file_name = csv_file.readStringUntil(',');
+            file_size = csv_file.readStringUntil('\n');
+            dbg("%d %s %d\n", ++i, file_name.c_str(), file_size.toInt());
+            csv_tracks[file_name] = file_size.toInt();
+        }
+        csv_file.close();
+        dbg("-------------------------\n");
     }
-    csv_file.close();
-    dbg("-------------------------\n");
+    else
+    {
+        dbg("Error: can not open file to read: sync.csv\n");
+    }
 
     // Check unsynchronized files and send emails
     String sd_file;
@@ -195,7 +197,7 @@ int syncMailAndSDFiles()
             {
                 // add to csv
                 csv_tracks[sd_file] = sd_size;
-                dbg("Add file %s %d\n", sd_file.c_str(), sd_size);
+                dbg("Add file %s %d to CSV\n", sd_file.c_str(), sd_size);
             }
         }
     }
@@ -335,7 +337,7 @@ void TaskWifiClient( void * pvParameters )
         M5.Btn.read();
         if (M5.Btn.wasPressed())
         {
-            blue();
+            blue_on();
             ret = initWifiClient(config.wifi_ssid, config.wifi_ssid_password);
             if (ret!=CLIENT_WIFI_CONNECTED)
             {
@@ -344,6 +346,7 @@ void TaskWifiClient( void * pvParameters )
                     continue;
             }
             ret = syncMailAndSDFiles();
+            blue_off();
             if (ret == 0)
                 white();
             else

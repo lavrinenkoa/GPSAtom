@@ -5,6 +5,7 @@
 
 #include "dbg.h"
 #include "wifipoint.h"
+#include "colorled.h"
 
 #define FILE_BUFF_SIZE     ( 1024 )
 
@@ -61,14 +62,16 @@ int initWifiClient(String ssid, String password)
       dbg("IP address:\t %s\n", WiFi.localIP().toString().c_str());
       break;
     }
-
+    blue_off();
     delay(500);
+    blue_on();
     dbg(".");
     ++n;
     if (n>10){
       client_wifi_status = CLIENT_WIFI_CONNECTED_TIMEOUT;
       dbg("\n");
       dbg("Connection timeout. Wi-fi disabled.");
+      blue_off();
       break;
     }
   }
@@ -87,6 +90,7 @@ void disconnectWifiClient()
 int sendEmail(String file_attachment)
 {
   int ret=-1;
+  int nmax = 20;
 
   // ESP_Mail_Client mclient;
   // mclient.sdBegin();
@@ -143,11 +147,11 @@ int sendEmail(String file_attachment)
   //   smtp.closeSession();
   //   return -1;
   // }
-  for (int i=0;i<=3;i++)
+  for (int i=0;i<=nmax;i++)
   {
       ret = smtp.connect(&session);
       if (ret == 1) break;
-      if ( (ret==0) and (i<=2)){
+      if ( (ret==0) and (i<=nmax-1)){
           dbg("Atom: Can not connect to the server: %s\n", smtp.errorReason().c_str());
           dbg("waitig 3 seconds...");
           sleep(3);
@@ -166,15 +170,13 @@ int sendEmail(String file_attachment)
     return ret;
   }
 
-  
-
   // Start sending Email and close the session
   // ret = MailClient.sendMail(&smtp, &message);
-  for (int i=0;i<=3;i++)
+  for (int i=0;i<=nmax;i++)
   {
       ret = MailClient.sendMail(&smtp, &message);
       if (ret) break;
-      if ( (ret!=true) and (i<=2)){
+      if ( (ret!=true) and (i<=nmax-1)){
           dbg("Atom: Email send is failed :( Let's try again!\n");
           sleep(3);
       }
