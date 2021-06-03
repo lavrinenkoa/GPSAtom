@@ -5,18 +5,7 @@
 /*      Used library:                                                                   */
 /*                        Tiny GPS Plus: https://github.com/mikalhart/TinyGPSPlus       */
 /*                        ArduinoJson:   https://github.com/bblanchon/ArduinoJson       */
-/*                        BLE                                                           */
-/*                        BluetoothSerial                                               */
-/*                        DNSServer                                                     */
-/*                        FS                                                            */
-/*                        HTTPClient                                                    */
-/*                        M5Stack                                                       */
-/*                        SD                                                            */
-/*                        SPI                                                           */
-/*                        SPIFFS                                                        */
-/*                        WiFi                                                          */
-/*                        WiFiClientSecure                                              */
-/*                        Wire                                                          */
+/*                        ESP-Mail-Client: https://github.com/mobizt/ESP-Mail-Client    */
 /****************************************************************************************/
 #include <TinyGPS++.h>
 #include <ArduinoJson.h>
@@ -50,6 +39,13 @@ ConfigParam config;                                           // <- global confi
 TinyGPSPlus gps;                                              // Reference the TinyGPS++ object
 HardwareSerial GPSRaw(2);                                     // By default, GPS is connected with M5Core through UART2
 
+#ifdef GPSFIRE
+// #include <Adafruit_NeoPixel.h>
+// #define M5STACK_FIRE_NEO_NUM_LEDS 10
+// #define M5STACK_FIRE_NEO_DATA_PIN 15
+// Adafruit_NeoPixel pixels = Adafruit_NeoPixel(M5STACK_FIRE_NEO_NUM_LEDS, M5STACK_FIRE_NEO_DATA_PIN, NEO_GRB + NEO_KHZ800);
+#endif
+
 // GPX track file
 GPX gpxTrack;
 char gpxTrackName[20];
@@ -61,14 +57,21 @@ TaskHandle_t Task0GPS;
 TaskHandle_t Task1HTTP;
 TaskHandle_t Task1WifiClient;
 
+//http://www.iotsharing.com/2017/06/how-to-use-binary-semaphore-mutex-counting-semaphore-resource-management.html
+SemaphoreHandle_t SDSemaphore;
+SemaphoreHandle_t LCDSemaphore;
+#define SEMAPHORE_TICK ( 5 )
+
+int SDCardInit();
+int syncMailAndSDFiles();
 void loadConfiguration(const char *filename, ConfigParam &config);
 void TaskGPS( void * pvParameters );
 void TaskWifiClient( void * pvParameters );
 void TaskHTTP( void * pvParameters );
 void gpsProcessing();
 void gpsLogValues(); 
-int isGPSValuesFiltered();
-int isGPSValuesValid();
+int  isGPSValuesFiltered();
+int  isGPSValuesValid();
 void GPXFileUpdate();
 void GPXFileInit();
 void GPXFileSaveTrack(String gpx_point);
@@ -76,163 +79,31 @@ void GPXFileSaveTrack(String gpx_point);
 /****************************************************************************************/
 /* Init routine                                                                         */
 /****************************************************************************************/
-
-
-int SDCardInit()
-{
-#ifdef M5STACK
-    // Fire
-    // SD file create
-    dbg("Initializing SD card...");
-    if (!SD.begin()) {
-      dbg("FAILED!\n");
-      return -1;
-    }
-    dbg("OK\n");
-#endif
-
-#ifdef M5ATOM
-    dbg("Initializing SD card...");
-    SPI.begin(23,33,19,-1);
-    if(!SD.begin(-1, SPI, 40000000)){
-      dbg("initialization failed!");
-      return -1;
-    } 
-    sdcard_type_t Type = SD.cardType();
-
-	dbg("SDCard Type = %d \r\n",Type);
-	dbg("SDCard Size = %d \r\n" , (int)(SD.cardSize()/1024/1024));
-
-    dbg("OK\n");
-    FastLED.setBrightness(1);
-    white();
-#endif
-
-    return 0;
-}
-
-int syncMailAndSDFiles()
-{
-    int ret=-1;
-    int i=0;
-    std::map <String, int> sd_tracks;
-    std::map <String, int> csv_tracks;
-    std::map <String, int> to_mail_tracks;
-    std::map <String, int> :: iterator it = sd_tracks.begin();
-    std::map <String, int> :: iterator sd;
-    std::map <String, int> :: iterator csv;
-
-    File csv_file;
-    String file_name;
-    String file_size;
-
-    // Get SD *.gpx file list.
-    File dir = SD.open("/");
-    dbg("-------------------------\n");
-    dbg("SD file list:\n");
-    while (true)
-    {
-        File entry = dir.openNextFile();
-        if (!entry)
-            break; // no more files
-        if (strstr(entry.name(), ".gpx") == NULL)
-        {
-            entry.close();
-            continue;
-        }
-        dbg("%d %s %d\n", ++i, entry.name(), entry.size());
-        // if (entry.isDirectory())
-        sd_tracks[entry.name()] = entry.size();
-        entry.close();
-    }
-    dbg("-------------------------\n");
-
-    // Read  CSV file with previus sync results
-    csv_file  = SD.open("/sync.csv", FILE_READ);
-    if (csv_file)
-    {
-        dbg("-------------------------\n");
-        dbg("CSV file list:\n"); i=0;
-        while (csv_file.available()) {
-            file_name = csv_file.readStringUntil(',');
-            file_size = csv_file.readStringUntil('\n');
-            dbg("%d %s %d\n", ++i, file_name.c_str(), file_size.toInt());
-            csv_tracks[file_name] = file_size.toInt();
-        }
-        csv_file.close();
-        dbg("-------------------------\n");
-    }
-    else
-    {
-        dbg("Error: can not open file to read: sync.csv\n");
-    }
-
-    // Check unsynchronized files and send emails
-    String sd_file;
-    int    sd_size;
-    it = sd_tracks.begin();
-    for (int i = 0; it != sd_tracks.end(); it++, i++) {
-        dbg("%d %s %d\n", i, it->first.c_str(), it->second);
-        sd_file = it->first;
-        sd_size = it->second;
-
-        csv = csv_tracks.find(sd_file);
-        if (csv == csv_tracks.end())   // file not found in csv list, send email
-        {
-            to_mail_tracks[sd_file] = sd_size;
-            dbg("Send email with %s %d\n", sd_file.c_str(), sd_size);
-            ret = sendEmail(sd_file);
-            if (ret==0) csv_tracks[sd_file] = sd_size;
-        }
-        else
-        {
-            if (sd_size != csv->second) // file size updated, send email
-            {
-                to_mail_tracks[sd_file] = sd_size;
-                dbg("Send email with %s %d. size updated\n", sd_file.c_str(), sd_size);
-                ret = sendEmail(sd_file);
-                if (ret==0) csv_tracks[sd_file] = sd_size;
-            }
-            else
-            {
-                // add to csv
-                csv_tracks[sd_file] = sd_size;
-                dbg("Add file %s %d to CSV\n", sd_file.c_str(), sd_size);
-            }
-        }
-    }
-
-    // Update CSV file
-    dbg("Update sync.csv\n");
-    csv_file  = SD.open("/sync.csv", FILE_WRITE);
-    it = csv_tracks.begin();
-    for (int i = 0; it != csv_tracks.end(); it++, i++) {
-        dbg("%d %s %d\n", i, it->first.c_str(), it->second);
-        // file_name, size
-        csv_file.printf("%s, %d\n", it->first.c_str(), it->second);
-    }
-    csv_file.close();
-
-    return ret;
-}
-
 void setup()
 {
-#ifdef M5STACK
+    SDSemaphore = xSemaphoreCreateMutex();
+    LCDSemaphore = xSemaphoreCreateMutex();
+
+#ifdef GPSFIRE
     M5.begin();                                    // Start M5 functions
     GPSRaw.begin(9600);                            // Init GPS serial interface
     //M5.Lcd.setBrightness(LCD_BRIGHTNESS - 200);    // Set initial LCD brightness
+    delay(1000); 
+    // pixels.begin();
+    // pixels.setPixelColor(0, pixels.Color(255, 255, 255));     
+    // pixels.show();
 #endif
-
-#ifdef M5ATOM
+#ifdef GPSATOM
     M5.begin(true,false,true); 
     GPSRaw.begin(9600,SERIAL_8N1,22,-1);           // Init GPS serial interface 
+    FastLED.setBrightness(1);
 #endif
 
     delay(2000);                                   // 2000ms init delay
     gpx_file_started = false;
 
     dbg("Running...\n");
+    white();
 
     if (SDCardInit())
         return;
@@ -273,7 +144,7 @@ void setup()
         xTaskCreatePinnedToCore(
                         TaskWifiClient,    // Task function.
                         "Wifi",      // name of task.
-                        50*1024,     // Stack size of task
+                        40*1024,     // Stack size of task
                         NULL,        // parameter of the task
                         1,           // priority of the task
                         &Task1WifiClient,  // Task handle to keep track of created task
@@ -287,7 +158,7 @@ void setup()
 void TaskGPS( void * pvParameters )
 {
     // while(1) sleep(5);
-    delay(2000);
+    delay(1000);
     while(1)
     {
         // Serial.print("Task0GPS running on core ");
@@ -305,7 +176,6 @@ void TaskGPS( void * pvParameters )
             {
                 gps.encode(GPSRaw.read());  // GPS read()
                 read_loop++;
-                // Add botton req
                 yield();
             }
             yield();
@@ -334,11 +204,18 @@ void TaskWifiClient( void * pvParameters )
         // Serial.println(xPortGetCoreID());
         yield();
         //loopHTTP();
+#ifdef GPSATOM
         M5.Btn.read();
         if (M5.Btn.wasPressed())
+#endif
+#ifdef GPSFIRE
+        M5.BtnB.read();
+        if (M5.BtnB.wasPressed())
+#endif
         {
             blue_on();
-            ret = initWifiClient(config.wifi_ssid, config.wifi_ssid_password);
+            ret = initWifiClient(WORK_SSID, WORK_SSID_PASS);
+            // ret = initWifiClient(config.wifi_ssid, config.wifi_ssid_password);
             if (ret!=CLIENT_WIFI_CONNECTED)
             {
                 ret = initWifiClient(HOME_SSID, HOME_SSID_PASS);
@@ -354,6 +231,153 @@ void TaskWifiClient( void * pvParameters )
         }
         delay(50);
     }
+}
+
+int SDCardInit()
+{
+#ifdef GPSFIRE
+    dbg("Initializing SD card...");
+    if (!SD.begin()) {
+      dbg("FAILED!\n");
+      return -1;
+    }
+    dbg("OK\n");
+#endif
+#ifdef GPSATOM
+    dbg("Initializing SD card...");
+    SPI.begin(23,33,19,-1);
+    if(!SD.begin(-1, SPI, 40000000)){
+      dbg("initialization failed!");
+      return -1;
+    } 
+    sdcard_type_t Type = SD.cardType();
+
+	dbg("SDCard Type = %d \r\n",Type);
+	dbg("SDCard Size = %d \r\n" , (int)(SD.cardSize()/1024/1024));
+
+    dbg("OK\n");
+#endif
+    return 0;
+}
+
+
+int syncMailAndSDFiles()
+{
+    int ret=-1;
+    int i=0;
+    std::map <String, int> sd_tracks;
+    std::map <String, int> csv_tracks;
+    std::map <String, int> to_mail_tracks;
+    std::map <String, int> :: iterator it = sd_tracks.begin();
+    std::map <String, int> :: iterator sd;
+    std::map <String, int> :: iterator csv;
+
+    File csv_file;
+    String file_name;
+    String file_size;
+
+    // Get SD *.gpx file list.
+    dbg("-------------------------\n");
+    dbg("SD file list:\n");
+
+    if ( xSemaphoreTake( SDSemaphore, ( TickType_t ) SEMAPHORE_TICK ) == pdTRUE )
+    {
+        File dir = SD.open("/");
+        while (true)
+        {
+            File entry = dir.openNextFile();
+            if (!entry)
+                break; // no more files
+            if (strstr(entry.name(), ".gpx") == NULL)
+            {
+                entry.close();
+                continue;
+            }
+            dbg("%d %s %d\n", ++i, entry.name(), entry.size());
+            // if (entry.isDirectory())
+            sd_tracks[entry.name()] = entry.size();
+            entry.close();
+        }
+        dir.close();
+        xSemaphoreGive(SDSemaphore);
+    }
+    dbg("-------------------------\n");
+
+    // Read  CSV file with previus sync results
+    if ( xSemaphoreTake( SDSemaphore, ( TickType_t ) SEMAPHORE_TICK ) == pdTRUE )
+    {
+        csv_file  = SD.open("/sync.csv", FILE_READ);
+        if (csv_file)
+        {
+            dbg("-------------------------\n");
+            dbg("CSV file list:\n"); i=0;
+            while (csv_file.available()) {
+                file_name = csv_file.readStringUntil(',');
+                file_size = csv_file.readStringUntil('\n');
+                dbg("%d %s %d\n", ++i, file_name.c_str(), file_size.toInt());
+                csv_tracks[file_name] = file_size.toInt();
+            }
+            csv_file.close();
+            dbg("-------------------------\n");
+        }
+        else
+        {
+            dbg("Error: can not open file to read: sync.csv\n");
+        }
+        xSemaphoreGive(SDSemaphore);
+    }
+
+    // Check unsynchronized files and send emails
+    String sd_file;
+    int    sd_size;
+    it = sd_tracks.begin();
+    for (int i = 0; it != sd_tracks.end(); it++, i++) {
+        dbg("%d %s %d\n", i, it->first.c_str(), it->second);
+        sd_file = it->first;
+        sd_size = it->second;
+
+        csv = csv_tracks.find(sd_file);
+        if (csv == csv_tracks.end())   // file not found in csv list, send email
+        {
+            to_mail_tracks[sd_file] = sd_size;
+            dbg("Send email with %s %d\n", sd_file.c_str(), sd_size);
+            ret = tryToSendEmail(sd_file);
+            if (ret==0) csv_tracks[sd_file] = sd_size;
+        }
+        else
+        {
+            if (sd_size != csv->second) // file size updated, send email
+            {
+                to_mail_tracks[sd_file] = sd_size;
+                dbg("Send email with %s %d. size updated\n", sd_file.c_str(), sd_size);
+                ret = tryToSendEmail(sd_file);
+                if (ret==0) csv_tracks[sd_file] = sd_size;
+            }
+            else
+            {
+                // add to csv
+                csv_tracks[sd_file] = sd_size;
+                dbg("Add file %s %d to CSV\n", sd_file.c_str(), sd_size);
+            }
+        }
+    }
+
+    // Update CSV file
+    dbg("Update sync.csv\n");
+    if ( xSemaphoreTake( SDSemaphore, ( TickType_t ) SEMAPHORE_TICK ) == pdTRUE )
+    {
+        csv_file  = SD.open("/sync.csv", FILE_WRITE);
+        it = csv_tracks.begin();
+        for (int i = 0; it != csv_tracks.end(); it++, i++) {
+            dbg("%d %s %d\n", i, it->first.c_str(), it->second);
+            // file_name, size
+            csv_file.printf("%s, %d\n", it->first.c_str(), it->second);
+        }
+        csv_file.close();
+        xSemaphoreGive(SDSemaphore);
+    }
+
+    return ret;
 }
 
 /****************************************************************************************/
@@ -610,7 +634,7 @@ void GPXFileInit()
 
     if (gps.date.year()<=2019)
     {
-        dbg("GPS date not ready. Waiting correct date...\n");
+        dbg("GPS date not ready. Waiting correct time...\n");
         return;
     }
 
@@ -679,13 +703,17 @@ void GPXFileInit()
 void GPXFileSaveTrack(String gpx_point)
 {
     if (gpx_file_started){
-        File gpxTrackFile;
-        gpxTrackFile = SD.open(gpxTrackFileName, "w+");
-        unsigned long filesize = gpxTrackFile.size();
-        filesize -= strlen(GPX_TRACK_TAIL);      // -27
-        gpxTrackFile.seek(filesize);
-        gpxTrackFile.print(gpx_point + GPX_TRACK_TAIL);
-        gpxTrackFile.flush();
-        gpxTrackFile.close();
+        if ( xSemaphoreTake( SDSemaphore, ( TickType_t ) SEMAPHORE_TICK ) == pdTRUE )
+        {
+            File gpxTrackFile;
+            gpxTrackFile = SD.open(gpxTrackFileName, "w+");
+            unsigned long filesize = gpxTrackFile.size();
+            filesize -= strlen(GPX_TRACK_TAIL);      // -27
+            gpxTrackFile.seek(filesize);
+            gpxTrackFile.print(gpx_point + GPX_TRACK_TAIL);
+            gpxTrackFile.flush();
+            gpxTrackFile.close();
+            xSemaphoreGive(SDSemaphore);
+        }
     }
 }

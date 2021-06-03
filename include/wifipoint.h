@@ -10,6 +10,7 @@ int initWifiClient(String ssid, String password);
 void initHTTPServer();
 void disconnectWifiClient();
 void loopHTTP();
+int tryToSendEmail(String file_attachment);
 int sendEmail(String file_attachment);
 
 #endif /* WIFIPOINT_H_ */

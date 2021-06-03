@@ -1,13 +1,13 @@
 #ifndef MYGPS_h
 #define MYGPS_h
 
-//#define M5STACK
-#define M5ATOM
+//#define GPSFIRE
+#define GPSATOM
 
-#ifdef M5STACK
+#ifdef GPSFIRE
 #include <M5Stack.h>
 #endif
-#ifdef M5ATOM
+#ifdef GPSATOM
 #define FASTLED_INTERNAL 1 // for FASTLED library
 #include "M5Atom.h"
 #include "FS.h"

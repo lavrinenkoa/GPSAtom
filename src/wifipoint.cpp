@@ -11,13 +11,15 @@
 
 extern char gpxTrackName[20];
 //------------------- Email sender --------------------
-SMTPSession smtp;
+
 #include "passwd.h"
 void smtpCallback(SMTP_Status status);  //  Callback function to get the Email sending status
 
 
 //------------------- Wi-Fi Server --------------------
 extern ConfigParam config;   // Access Point credentials
+extern SemaphoreHandle_t SDSemaphore;
+#define SEMAPHORE_TICK ( 50 )
 
 DNSServer dnsServer;
 WiFiServer server(80);
@@ -50,7 +52,7 @@ int initWifiClient(String ssid, String password)
 {
   int n=0;
 
-  dbg("Connect to WiFi %s\n", config.wifi_ssid);
+  dbg("Connect to WiFi %s\n", ssid.c_str());
   WiFi.begin(ssid.c_str(), password.c_str());
   while (1)
   {
@@ -60,11 +62,13 @@ int initWifiClient(String ssid, String password)
       dbg("\n");
       dbg("Connection established\n");  
       dbg("IP address:\t %s\n", WiFi.localIP().toString().c_str());
+      blue();
       break;
     }
-    blue_off();
-    delay(500);
-    blue_on();
+    delay(250);
+    blue_off(true);
+    delay(250);
+    blue();
     dbg(".");
     ++n;
     if (n>10){
@@ -86,21 +90,52 @@ void disconnectWifiClient()
   dbg("Wi-fi disabled.");
 }
 
+int tryToSendEmail(String file_attachment)
+{
+  int nmax = 10;
+  int ret=-1;
+
+  for (int i=0;i<=nmax;i++)
+  {
+      ret = sendEmail(file_attachment);
+      if (ret==0)
+      {
+        dbg("Atom: Email send is OK\n");
+        break;
+      }
+      else if ((ret==-1) and (i<=nmax-1))
+      {
+          dbg("Atom: Email send is failed :( Let's try again!\n");
+          dbg("Sleep 3 sec.\n");
+          delay(3000);
+      }      
+  }
+
+  return ret;
+}
+
 // https://github.com/mobizt/ESP-Mail-Client/blob/master/examples/Send_Attachment_File/Send_Attachment_File.ino
+
+// 0x004C  /**< Reading information from the socket failed. */
 int sendEmail(String file_attachment)
 {
+  SMTPSession smtp;
+
   int ret=-1;
   int nmax = 20;
 
-  // ESP_Mail_Client mclient;
-  // mclient.sdBegin();
-  int sdret = MailClient.sdBegin();
+  ESP_Mail_Client mclient;
+  int sdret = mclient.sdBegin();
   dbg("Email SD init %d\n", sdret);
 
+  // int sdret = MailClient.sdBegin();
+  // dbg("Email SD init %d\n", sdret);
+
   // Enable the debug via Serial port
-  // none debug or 0
-  // basic debug or 1
-  smtp.debug(1);
+  // none debug 0
+  // basic debug 1
+  // full debug 2
+  // smtp.debug(2);
   smtp.callback(smtpCallback);   // Set the callback function to get the sending results
   ESP_Mail_Session session;      // Declare the session config data
 
@@ -135,7 +170,13 @@ int sendEmail(String file_attachment)
   att.file.path = file_attachment.c_str();
   att.file.storage_type = esp_mail_file_storage_type_sd; // from SD
   att.descr.transfer_encoding = Content_Transfer_Encoding::enc_base64;
-  message.addInlineImage(att);
+  if ( xSemaphoreTake(SDSemaphore, ( TickType_t ) SEMAPHORE_TICK ) == pdTRUE )
+  {
+    //message.addInlineImage(att); // addAttachment
+    // message.addAttachment(att); // addAttachment
+    message.addParallelAttachment(att);
+    xSemaphoreGive(SDSemaphore);
+  }
 
   message.priority = esp_mail_smtp_priority::esp_mail_smtp_priority_high;
   message.response.notify = esp_mail_smtp_notify_success | esp_mail_smtp_notify_failure | esp_mail_smtp_notify_delay;
@@ -149,12 +190,18 @@ int sendEmail(String file_attachment)
   // }
   for (int i=0;i<=nmax;i++)
   {
-      ret = smtp.connect(&session);
-      if (ret == 1) break;
-      if ( (ret==0) and (i<=nmax-1)){
+      if ( xSemaphoreTake(SDSemaphore, ( TickType_t ) SEMAPHORE_TICK ) == pdTRUE )
+      {
+        ret = smtp.connect(&session);
+        xSemaphoreGive(SDSemaphore);
+      }
+      if (ret) break;
+      if ( (!ret) and (i<=nmax-1)){
+          Serial.printf("Atom: Can not connect to the server: %s\n", smtp.errorReason().c_str());
           dbg("Atom: Can not connect to the server: %s\n", smtp.errorReason().c_str());
           dbg("waitig 3 seconds...");
-          sleep(3);
+          smtp.closeSession();
+          delay(3000);
           dbg("and try again!\n");
       }
   }
@@ -162,7 +209,7 @@ int sendEmail(String file_attachment)
   if (ret)
   {
     dbg("Atom: SMTP Connected OK\n");
-    }
+  }
   else
   {
     dbg("Atom:  SMTP Connect Error: %s.\n", smtp.errorReason().c_str());
@@ -170,17 +217,15 @@ int sendEmail(String file_attachment)
     return ret;
   }
 
-  // Start sending Email and close the session
-  // ret = MailClient.sendMail(&smtp, &message);
-  for (int i=0;i<=nmax;i++)
+  if ( xSemaphoreTake(SDSemaphore, ( TickType_t ) SEMAPHORE_TICK ) == pdTRUE )
   {
-      ret = MailClient.sendMail(&smtp, &message);
-      if (ret) break;
-      if ( (ret!=true) and (i<=nmax-1)){
-          dbg("Atom: Email send is failed :( Let's try again!\n");
-          sleep(3);
-      }
+
+    dbg("MailClient sendMail()\n");
+    // ret = MailClient.sendMail(&smtp, &message);
+    ret = mclient.sendMail(&smtp, &message);
+    xSemaphoreGive(SDSemaphore);
   }
+
   if (ret)
   {
     dbg("Atom: Email sent successfully\n");
@@ -201,6 +246,7 @@ int sendEmail(String file_attachment)
 void smtpCallback(SMTP_Status status)
 {
   // Print the current status
+  Serial.print("smtp: ");
   Serial.println(status.info());
 
   // Print the sending result
@@ -210,22 +256,23 @@ void smtpCallback(SMTP_Status status)
     Serial.printf("Message sent success: %d\n", status.completedCount());
     Serial.printf("Message sent failled: %d\n", status.failedCount());
     Serial.println("----------------\n");
-    struct tm dt;
 
-    for (size_t i = 0; i < smtp.sendingResult.size(); i++)
-    {
-      // Get the result item
-      SMTP_Result result = smtp.sendingResult.getItem(i);
-      localtime_r(&result.timesstamp, &dt);
+    // struct tm dt;
+    // for (size_t i = 0; i < smtp.sendingResult.size(); i++)
+    // {
+    //   // Get the result item
+    //   SMTP_Result result = smtp.sendingResult.getItem(i);
+    //   localtime_r(&result.timesstamp, &dt);
 
-      Serial.printf("Message No: %d\n", i + 1);
-      Serial.printf("Status: %s\n", result.completed ? "success" : "failed");
-      Serial.printf("Date/Time: %d/%d/%d %d:%d:%d\n", dt.tm_year + 1900, dt.tm_mon + 1, dt.tm_mday, dt.tm_hour, dt.tm_min, dt.tm_sec);
-      Serial.printf("Recipient: %s\n", result.recipients);
-      Serial.printf("Subject: %s\n", result.subject);
-    }
+    //   Serial.printf("Message No: %d\n", i + 1);
+    //   Serial.printf("Status: %s\n", result.completed ? "success" : "failed");
+    //   Serial.printf("Date/Time: %d/%d/%d %d:%d:%d\n", dt.tm_year + 1900, dt.tm_mon + 1, dt.tm_mday, dt.tm_hour, dt.tm_min, dt.tm_sec);
+    //   Serial.printf("Recipient: %s\n", result.recipients);
+    //   Serial.printf("Subject: %s\n", result.subject);
+    // }
     Serial.println("----------------\n");
   }
+  delay(300);
 }
 //---------------------- HTTP Server ---------------------------------------
 

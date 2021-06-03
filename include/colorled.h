@@ -6,6 +6,6 @@ void green();
 void blue();
 void white();
 void blue_on();
-void blue_off();
+void blue_off(bool st=false);
 
 #endif /* COLORLED_H_ */
